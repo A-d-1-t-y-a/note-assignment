@@ -5,7 +5,7 @@ the same settlement, applies the production mapping configs (stored as data in P
 the two sources on `record_ref`, and writes an accounting Summary / Consolidated Excel report that
 ties out to Amazon's own settlement total.
 
-> Language note: Python was used instead of Go, as requested for this submission. The structure
+> Language note: The assignment permits Python, although it prefers Go. The structure
 > (ingest / rules / reconcile / report) maps one-to-one onto a Go package layout.
 
 ## Results (settlement 12395580393, 17.07.2026 to 31.07.2026, AUD)
@@ -16,8 +16,8 @@ ties out to Amazon's own settlement total.
 | Amazon `total-amount` (settlement header row) | 212,118.95 | 212,118.95 | **0.00** |
 | Summary net (Sales + Refunds + Expenses + Paid To Amazon), after fix | 212,118.95 | 212,118.95 | **0.00** |
 
-Summary lines, **before and after** `MAPPING_FIXES.sql`. Every other line is 0.00 on both sides,
-before and after.
+Summary lines, **before and after** `MAPPING_FIXES.sql`. Every other line has a 0.00 difference
+between the two sources, before and after.
 
 | Summary line | Diff before fix | Diff after fix | Root cause |
 |---|---:|---:|---|
@@ -46,8 +46,9 @@ cannot be closed without using settlement data in the Payments column. The full 
 Every settlement line (54,979 of 54,979) is reconciled. Totals: 13,289 reconciled,
 9,448 unreconciled payments (26 in scope), 0 unreconciled settlements.
 
-**Config defects found: 9** (5 visible in this data, 4 latent), **6 matching-logic fixes**,
-1 difference that cannot be closed and is explained, and 3 suspicions documented but not changed.
+**Config fixes applied: 7** (5 demonstrated by this data, 2 inferred from paired rules),
+**2 additional config findings left for investigation**, 6 pipeline interpretation changes,
+1 fully explained residual classification difference, and 3 further suspicions.
 See [MAPPING_FIXES.sql](MAPPING_FIXES.sql).
 
 Deliverables in [output/](output):
@@ -99,7 +100,7 @@ Input paths default to `data/`. Override them with `--payments`, `--settlements`
 `--settlement-cfg`. `--settlement-id` sets the reconciliation scope; by default it is the
 settlement(s) present in the settlement file.
 
-Tests (23 tests; unit tests plus an end-to-end test on small fixtures against a real `recon_test` database):
+Tests (24 tests; unit tests plus an end-to-end test on small fixtures against a real `recon_test` database):
 
 ```bash
 .venv/Scripts/python -m pytest -q

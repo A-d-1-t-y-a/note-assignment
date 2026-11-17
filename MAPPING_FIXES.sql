@@ -114,12 +114,10 @@ UPDATE payment_mapping_config
    AND amount_field = 'gift_wrap_credits';
 
 -- =====================================================================
--- LATENT DEFECTS. These rules do not fire on this settlement's data, so no
--- Summary number moves. I found them by pairing every payment rule with
--- its settlement counterpart on the record_ref literal anchor (the same
--- underlying money) and checking that both build the same key and route
--- to the same bucket. Left in place, each one breaks reconciliation the
--- first time such a transaction appears.
+-- LATENT CONFIG FINDINGS. These rules do not fire on this settlement's data,
+-- so no Summary number moves. Findings 6 and 7 have clear counterparts and
+-- are corrected below. Findings 8 and 9 remain investigations: the supplied
+-- data cannot establish the intended counterpart or accounting treatment.
 -- =====================================================================
 
 -- ---------------------------------------------------------------------
@@ -159,35 +157,28 @@ UPDATE payment_mapping_config
  WHERE rule_id = 58 AND transaction_type = 'SAFE-T_REIMBURSEMENT' AND amount_field = 'other';
 
 -- ---------------------------------------------------------------------
--- DEFECT 8  settlement rule #137 (CSV line 138): malformed record_ref
+-- INVESTIGATE 8  settlement rule #137 (CSV line 138): malformed record_ref
 --   OTHER-TRANSACTION / OTHER-TRANSACTION / PROMOTION_ADJUSTMENT
 --   record_ref = ADJUSTMENT_OTHER+settlement_id+date+record_type+settlement_id
--- Evidence : 'record_type' is not a field of either report, so it would be
---            treated as a literal. settlement_id also appears twice. The key
---            can never equal the payment-side key for "Adjustment / Other"
---            (payment #37/#38: ADJUSTMENT_OTHER+settlement_id+date), which
---            uses the same summary field (total_adjustment_other_buyer_recharge_amt).
--- Change   : ADJUSTMENT_OTHER+settlement_id+date
+-- Evidence : 'record_type' is not a field of either report, so it is
+--            treated as a literal. settlement_id also appears twice.
+--            There is no such row in this settlement. Payment #37/#38 is a
+--            possible counterpart, but the matching transaction is absent.
+-- Action  : leave the rule unchanged until a source pair establishes the
+--           correct key. The proposed replacement is not proven by this run.
 -- ---------------------------------------------------------------------
-UPDATE settlement_mapping_config
-   SET record_ref = 'ADJUSTMENT_OTHER+settlement_id+date'
- WHERE rule_id = 137 AND amount_description = 'PROMOTION_ADJUSTMENT';
 
 -- ---------------------------------------------------------------------
--- DEFECT 9  payment rule #30 (CSV line 31): one-sided routing
+-- INVESTIGATE 9  payment rule #30 (CSV line 31): one-sided routing
 --   ADJUSTMENT / FBA_INVENTORY_REIMBURSEMENT_-_FEE_CORRECTION / other
 --   -> positive: sales_other, negative: ''   (negative amounts silently dropped)
--- Evidence : the only "other"-column rule in the config that routes one
---            sign and drops the other. Every comparable adjustment routes
---            both signs, e.g. SHIPPING_SERVICES/ADJUSTMENT #107:
---            sales_other / expenses_other. A negative fee correction would
---            disappear from the summary while still being in the row total.
--- Change   : negative -> expenses_other.
+-- Evidence : the rule deliberately leaves negative amounts unrouted in the
+--            supplied config. No negative instance occurs in these files.
+--            Other adjustments route both signs, but that does not establish
+--            the accounting treatment of a negative fee correction.
+-- Action  : retain the supplied rule and seek a negative source pair or
+--           accounting policy before assigning its Summary bucket.
 -- ---------------------------------------------------------------------
-UPDATE payment_mapping_config
-   SET to_summary_field_when_negative_amount = 'expenses_other'
- WHERE rule_id = 30 AND description = 'FBA_INVENTORY_REIMBURSEMENT_-_FEE_CORRECTION'
-   AND amount_field = 'other';
 
 COMMIT;
 

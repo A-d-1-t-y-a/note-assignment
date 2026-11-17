@@ -126,7 +126,7 @@ in `MAPPING_FIXES.sql` and did not apply it.
    to close.
 2. **Per-record bucket differences inside reconciled records.** After the fixes the only non-zero
    per-record differences are the tax-split residual above.
-3. **Latent config defects** that this settlement never exercises. I paired every payment rule with
+3. **Latent config findings** that this settlement never exercises. I paired every payment rule with
    its settlement counterpart via the record_ref *anchor* (the template with field tokens
    abstracted). Same anchor = same money, so the keys and the routing must agree. This found:
    - AWD storage fee `AWD_STORAGE_FEES` (payment #6/#92) vs `AWD_STORAGE_FEE` (settlement #47): the
@@ -134,15 +134,16 @@ in `MAPPING_FIXES.sql` and did not apply it.
    - SAFE-T reimbursement: payment #58 → `expenses_fba_fees`, settlement #78 →
      `sales_inventory_reimbursements` (defect 7).
    - Settlement #137 record_ref contains a non-field token `record_type` and a duplicated
-     `settlement_id` (defect 8).
-   - Payment #30 routes only positive FEE_CORRECTION amounts, so negatives are silently dropped
-     (defect 9).
+     `settlement_id`. The intended counterpart is unproven here, so this rule remains unchanged.
+   - Payment #30 routes only positive FEE_CORRECTION amounts. There is no negative example or
+     accounting policy in these files to prove where a negative belongs, so it remains unchanged.
    - Suspected, not changed for lack of data: DEALS (#7) vs DEALS_PROMOTION_FEE anchors, VINE
      (#101 vs settlement #98), shipment_id vs txn_ref for inbound fees.
 
    These checks are now built into `python -m recon validate` (near-miss anchors via string
-   similarity; same anchor with different routing). It reports **7 findings on the original configs
-   and 0 after the fixes**. Defects 1 and 4 are well-formed but semantically wrong, so only the data
+   similarity; same anchor with different routing). The two unresolved checks remain visible in
+   `recon validate` and the report's Config Findings sheet rather than being suppressed with
+   speculative updates. Defects 1 and 4 are well-formed but semantically wrong, so only the data
    variance could reveal them.
 
 ## 8. Hardening
@@ -150,7 +151,7 @@ in `MAPPING_FIXES.sql` and did not apply it.
 - Idempotent re-ingest (truncate and reload in one transaction), config hash stamped on each run,
   trigger-based config audit.
 - The summary is accumulated during ingestion and cross-checked against SQL on every report.
-- 23 pytest tests: parsing edge cases (GMT+9 midnight crossing, abbreviated months, thousands
+- 24 pytest tests: parsing edge cases (GMT+9 midnight crossing, abbreviated months, thousands
   separators), rule precedence / prefix / duplicates / sign routing, and an end-to-end fixture run
   against a real Postgres database covering scope, statuses and reasons, running summary, a config
   fix as a data change, idempotency, and report ordering.
@@ -159,3 +160,16 @@ in `MAPPING_FIXES.sql` and did not apply it.
   DLL. I fell back to psycopg's pure-Python implementation over the libpq that ships with the
   embedded server. Separately, `pg_dump` deadlocked behind my own idle read transaction; fixed by
   committing before the dump.
+
+## 9. Final review and reproduction
+
+- Tightened the accounting scope to require an explicit `Released` payment status. A new fixture
+  verifies that an unexpected `Pending` status contributes nothing to either summary query.
+- Kept the two unproven latent changes (rules #137 and #30) as documented investigations rather
+  than applying a guessed key or accounting bucket. They remain visible on the Config Findings sheet.
+- Ran all 24 tests against a fresh PostgreSQL 16 instance: all passed. Then ran `run-all` against
+  another fresh instance and regenerated both workbooks, the dump, and `output/run_all.log`.
+- Independently summed the supplied raw files: settlement lines and header both equal 212,118.95;
+  released payment rows total 78,362.44 and the bank transfer is -133,756.51, giving proceeds of
+  212,118.95. The regenerated after-fix workbook has 13,289 reconciled records, 9,448 unreconciled
+  payments (26 in scope), no unreconciled settlements, and a zero Amazon proceeds check.

@@ -37,7 +37,7 @@ FROM (
          sum(r.net_amount) FILTER (WHERE r.source = 'PAYMENT')    AS p_net,
          sum(r.net_amount) FILTER (WHERE r.source = 'SETTLEMENT') AS s_net,
          bool_or(sc.settlement_id IS NOT NULL
-                 AND (r.source = 'SETTLEMENT' OR r.transaction_status IS DISTINCT FROM 'Deferred')) AS in_scope,
+                 AND (r.source = 'SETTLEMENT' OR r.transaction_status = 'Released')) AS in_scope,
          bool_and(r.transaction_status = 'Deferred') FILTER (WHERE r.source = 'PAYMENT') AS all_deferred,
          bool_or(sc.settlement_id IS NOT NULL) AS any_scope_settlement,
          bool_and(r.transaction_type_key = 'TRANSFER') FILTER (WHERE r.source = 'PAYMENT') AS all_transfer,
@@ -52,7 +52,7 @@ FROM (
 # In-scope predicate on raw_record r (used by summary / report queries)
 IN_SCOPE = ("(r.settlement_id IN (SELECT settlement_id FROM recon.recon_scope) "
             "AND NOT r.is_header "
-            "AND (r.source = 'SETTLEMENT' OR r.transaction_status IS DISTINCT FROM 'Deferred'))")
+            "AND (r.source = 'SETTLEMENT' OR r.transaction_status = 'Released'))")
 
 
 def reconcile(conn, settlement_ids: list[str] | None = None) -> dict:
@@ -100,7 +100,7 @@ def running_summary_by_line(conn) -> dict:
       JOIN recon.summary_field_map m
         ON m.summary_field = s.summary_field AND (m.sign = 'ANY' OR m.sign = s.sign)
       WHERE s.settlement_id IN (SELECT settlement_id FROM recon.recon_scope)
-        AND (s.source = 'SETTLEMENT' OR s.transaction_status <> 'Deferred')
+        AND (s.source = 'SETTLEMENT' OR s.transaction_status = 'Released')
       GROUP BY 1, 2"""
     out: dict = {}
     with conn.cursor() as cur:

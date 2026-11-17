@@ -207,3 +207,18 @@ def test_report_is_written(conn, tmp_path):
                      if h == "Reconciliation Status")] for r in cons]
     # reconciled first, then unreconciled payments, then unreconciled settlements
     assert statuses == sorted(statuses, key=["RECONCILED", "UNRECONCILED_PAYMENT", "UNRECONCILED_SETTLEMENT"].index)
+
+
+def test_unknown_payment_status_is_excluded_from_summary(conn, tmp_path):
+    """Only Released payments belong to the settlement accounting period."""
+    pending = tmp_path / "pending.csv"
+    pending.write_text(PAYMENTS.replace(
+        '"Released","17 July 2026 4:26:32 pm GMT+9"',
+        '"Pending","17 July 2026 4:26:32 pm GMT+9"'), encoding="utf-8")
+    assert pending.read_text(encoding="utf-8") != PAYMENTS
+    ingest(conn, pending, conn.fx / "s.txt")
+    reconcile(conn)
+    summary = summary_by_line(conn)
+    assert summary.get("S_PRODUCT", {}).get("PAYMENT", Decimal("0")) == 0
+    assert summary["S_PRODUCT"]["SETTLEMENT"] == Decimal("22.00")
+    assert running_summary_by_line(conn) == summary

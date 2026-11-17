@@ -329,7 +329,7 @@ def write_tieout(wb, conn):
           ["settlement ID", "status", "in scope", "rows", "total", "of which Transfer", "total excl. Transfer"],
           _q(conn, """SELECT r.settlement_id, r.transaction_status,
                              CASE WHEN r.settlement_id IN (SELECT settlement_id FROM recon.recon_scope)
-                                   AND r.transaction_status <> 'Deferred' THEN 'Y' ELSE 'N' END,
+                                   AND r.transaction_status = 'Released' THEN 'Y' ELSE 'N' END,
                              count(*), sum(r.net_amount),
                              coalesce(sum(r.net_amount) FILTER (WHERE r.transaction_type_key='TRANSFER'),0),
                              sum(r.net_amount) - coalesce(sum(r.net_amount) FILTER (WHERE r.transaction_type_key='TRANSFER'),0)
