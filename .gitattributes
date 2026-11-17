@@ -1,0 +1,4 @@
+* text=auto eol=lf
+# keep source files byte-exact (ingestion records their sha256)
+data/** -text
+output/** -text

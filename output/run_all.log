@@ -1,0 +1,129 @@
+schema created; payment rules=149 settlement rules=137
+{
+  "PAYMENT": {
+    "rows": 23026,
+    "lines": 117147,
+    "unmapped_lines": 0,
+    "multi_rule_lines": 18414,
+    "component_mismatch_rows": 0
+  },
+  "SETTLEMENT": {
+    "rows": 54980,
+    "lines": 54932,
+    "unmapped_lines": 0,
+    "multi_rule_lines": 0,
+    "component_mismatch_rows": 0
+  }
+}
+ingested in 17.4s
+{
+  "RECONCILED": {
+    "records": 13289,
+    "payment_rows": 13446,
+    "settlement_rows": 54979,
+    "net_diff": "0.00"
+  },
+  "UNRECONCILED_PAYMENT (out of scope)": {
+    "records": 9422,
+    "payment_rows": 9554,
+    "settlement_rows": 0,
+    "net_diff": "71846.71"
+  },
+  "UNRECONCILED_PAYMENT": {
+    "records": 26,
+    "payment_rows": 26,
+    "settlement_rows": 0,
+    "net_diff": "-133756.51"
+  }
+}
+line            label                                   payments    settlement        diff
+S_PRODUCT       Sales/Product Charges                 348,815.93    348,908.77      -92.84
+S_TAX           Sales/Tax                                   0.00          0.00        0.00
+S_SHIPPING      Sales/Shipping                         21,773.13      8,200.96   13,572.17
+S_AMAZON_FEES   Sales/Amazon fees                           0.00          0.00        0.00
+S_INV_REIMB     Sales/Inventory Reimbursements            679.69        679.69        0.00
+S_CROSS_DEBT    Sales/Cross-account Debt Adjustme           0.00          0.00        0.00
+S_OTHER         Sales/Other                                 0.00         11.97      -11.97
+S_FBA_FEES      Sales/FBA Fees                              0.00          0.00        0.00
+S_MICRO_FAILED  Sales/Micro Deposit (Failed)                0.00          0.00        0.00
+R_EXPENSES      Refunds/Refund expenses                   258.87        216.28       42.59
+R_SALES         Refunds/Refunded sales                 -2,031.37     -2,031.37        0.00
+E_PROMO         Expenses/Promo rebates                      0.00    -11,273.53   11,273.53
+E_FBA           Expenses/FBA fees                          -0.41         -0.41        0.00
+E_ADS           Expenses/Cost of Advertising                0.00          0.00        0.00
+E_SHIPPING      Expenses/Shipping Charges                   0.00          0.00        0.00
+E_AMAZON_FEES   Expenses/Amazon fees                 -132,593.41   -132,593.41        0.00
+E_REV_REIMB     Expenses/Reversed Reimbursements            0.00          0.00        0.00
+E_CROSS_DEBT    Expenses/Cross-account Debt Adjus           0.00          0.00        0.00
+E_OTHER         Expenses/Other                        -11,273.53          0.00  -11,273.53
+E_MICRO         Expenses/Micro Deposit                      0.00          0.00        0.00
+P_PAID          Paid To Amazon/Paid To Amazon               0.00          0.00        0.00
+M_RESERVE       Memo/Current reserve amount                 0.00          0.00        0.00
+M_BEGINNING     Memo/Beginning balance (previous            0.00          0.00        0.00
+M_CARRIED       Memo/Amazon carried forward                 0.00          0.00        0.00
+wrote D:\projects\assignments\port\output\amazon_recon_report_before_fix.xlsx
+applied MAPPING_FIXES.sql
+{
+  "PAYMENT": {
+    "rows": 23026,
+    "lines": 107940,
+    "unmapped_lines": 0,
+    "multi_rule_lines": 0,
+    "component_mismatch_rows": 0
+  },
+  "SETTLEMENT": {
+    "rows": 54980,
+    "lines": 54932,
+    "unmapped_lines": 0,
+    "multi_rule_lines": 0,
+    "component_mismatch_rows": 0
+  }
+}
+ingested in 16.4s
+{
+  "RECONCILED": {
+    "records": 13289,
+    "payment_rows": 13446,
+    "settlement_rows": 54979,
+    "net_diff": "0.00"
+  },
+  "UNRECONCILED_PAYMENT (out of scope)": {
+    "records": 9422,
+    "payment_rows": 9554,
+    "settlement_rows": 0,
+    "net_diff": "71846.71"
+  },
+  "UNRECONCILED_PAYMENT": {
+    "records": 26,
+    "payment_rows": 26,
+    "settlement_rows": 0,
+    "net_diff": "-133756.51"
+  }
+}
+line            label                                   payments    settlement        diff
+S_PRODUCT       Sales/Product Charges                 348,815.93    348,908.77      -92.84
+S_TAX           Sales/Tax                                   0.00          0.00        0.00
+S_SHIPPING      Sales/Shipping                          8,294.16      8,200.96       93.20
+S_AMAZON_FEES   Sales/Amazon fees                           0.00          0.00        0.00
+S_INV_REIMB     Sales/Inventory Reimbursements            679.69        679.69        0.00
+S_CROSS_DEBT    Sales/Cross-account Debt Adjustme           0.00          0.00        0.00
+S_OTHER         Sales/Other                                11.61         11.97       -0.36
+S_FBA_FEES      Sales/FBA Fees                              0.00          0.00        0.00
+S_MICRO_FAILED  Sales/Micro Deposit (Failed)                0.00          0.00        0.00
+R_EXPENSES      Refunds/Refund expenses                   216.28        216.28        0.00
+R_SALES         Refunds/Refunded sales                 -2,031.37     -2,031.37        0.00
+E_PROMO         Expenses/Promo rebates                -11,273.53    -11,273.53        0.00
+E_FBA           Expenses/FBA fees                          -0.41         -0.41        0.00
+E_ADS           Expenses/Cost of Advertising                0.00          0.00        0.00
+E_SHIPPING      Expenses/Shipping Charges                   0.00          0.00        0.00
+E_AMAZON_FEES   Expenses/Amazon fees                 -132,593.41   -132,593.41        0.00
+E_REV_REIMB     Expenses/Reversed Reimbursements            0.00          0.00        0.00
+E_CROSS_DEBT    Expenses/Cross-account Debt Adjus           0.00          0.00        0.00
+E_OTHER         Expenses/Other                              0.00          0.00        0.00
+E_MICRO         Expenses/Micro Deposit                      0.00          0.00        0.00
+P_PAID          Paid To Amazon/Paid To Amazon               0.00          0.00        0.00
+M_RESERVE       Memo/Current reserve amount                 0.00          0.00        0.00
+M_BEGINNING     Memo/Beginning balance (previous            0.00          0.00        0.00
+M_CARRIED       Memo/Amazon carried forward                 0.00          0.00        0.00
+wrote D:\projects\assignments\port\output\amazon_recon_report_after_fix.xlsx
+wrote D:\projects\assignments\port\output\recon_dump_after_fix.sql.gz
