@@ -292,7 +292,7 @@ def write_drilldown(wb, conn):
          AND (m.sign='ANY' OR (m.sign='POS' AND l.amount>0) OR (m.sign='NEG' AND l.amount<0))
         JOIN recon.summary_line sl ON sl.line_code = m.line_code
         WHERE {IN_SCOPE}
-        GROUP BY 1,2,3,4,5,6,7,8, sl.sort_order ORDER BY sl.sort_order,3,4,5,6""")
+        GROUP BY 1,2,3,4,5,6,7,8, sl.sort_order ORDER BY sl.sort_order,3,4,5,6,7,8""")
     s = summary_by_line(conn)
     last = None
     for code, line, src, tt, at, fd, rule, sf, n, amt in data:
@@ -354,7 +354,7 @@ def write_tieout(wb, conn):
                               count(*), sum(l.amount)
                        FROM recon.record_line l JOIN recon.raw_record r USING (record_id)
                        WHERE {IN_SCOPE} AND l.summary_field IS NULL AND NOT (l.source='PAYMENT' AND l.amount_field='total')
-                       GROUP BY 1,2,3,4,5 ORDER BY 1,2,3"""))
+                       GROUP BY 1,2,3,4,5 ORDER BY 1,2,3,4,5"""))
     table("Payment rows whose routed components do not add up to the row total (in scope)",
           ["transaction type", "rows", "sum(total)", "sum(routed to summary)", "difference"],
           _q(conn, f"""SELECT r.transaction_type, count(*), sum(r.net_amount), sum(x.routed), sum(r.net_amount - x.routed)
@@ -365,14 +365,18 @@ def write_tieout(wb, conn):
                        GROUP BY 1 ORDER BY 1"""))
     table("Ingestion checks",
           ["check", "value"],
-          _q(conn, """SELECT 'payment rows', count(*)::text FROM recon.raw_record WHERE source='PAYMENT'
-                      UNION ALL SELECT 'settlement rows (incl. header)', count(*)::text FROM recon.raw_record WHERE source='SETTLEMENT'
-                      UNION ALL SELECT 'record lines', count(*)::text FROM recon.record_line
-                      UNION ALL SELECT 'UNMAPPED lines (no rule)', count(*)::text FROM recon.record_line WHERE status='UNMAPPED'
-                      UNION ALL SELECT 'MULTI_RULE lines (amount routed by >1 rule)', count(*)::text FROM recon.record_line WHERE status='MULTI_RULE'
-                      UNION ALL SELECT 'payment rows where components <> total', count(*)::text FROM recon.raw_record WHERE component_check_diff <> 0
-                      UNION ALL SELECT 'source files', string_agg(file_name || ' sha256=' || left(sha256,12), ', ') FROM recon.source_file
-                      UNION ALL SELECT 'config hash at ingest', config_hash FROM recon.ingest_run"""))
+          # explicit ordinal: UNION ALL alone does not guarantee row order, and the
+          # report must be byte-for-byte reproducible between runs
+          [r[1:] for r in _q(conn, """
+              SELECT 1, 'payment rows', count(*)::text FROM recon.raw_record WHERE source='PAYMENT'
+              UNION ALL SELECT 2, 'settlement rows (incl. header)', count(*)::text FROM recon.raw_record WHERE source='SETTLEMENT'
+              UNION ALL SELECT 3, 'record lines', count(*)::text FROM recon.record_line
+              UNION ALL SELECT 4, 'UNMAPPED lines (no rule)', count(*)::text FROM recon.record_line WHERE status='UNMAPPED'
+              UNION ALL SELECT 5, 'MULTI_RULE lines (amount routed by >1 rule)', count(*)::text FROM recon.record_line WHERE status='MULTI_RULE'
+              UNION ALL SELECT 6, 'payment rows where components <> total', count(*)::text FROM recon.raw_record WHERE component_check_diff <> 0
+              UNION ALL SELECT 7, 'source files', string_agg(file_name || ' sha256=' || left(sha256,12), ', ' ORDER BY file_id) FROM recon.source_file
+              UNION ALL SELECT 8, 'config hash at ingest', config_hash FROM recon.ingest_run
+              ORDER BY 1""")])
 
 
 def write_config_findings(wb, conn):
@@ -391,7 +395,7 @@ def write_config_findings(wb, conn):
     for r in _q(conn, f"""SELECT l.rule_table, l.rule_id, l.amount_field, l.summary_field,
                                  count(*) || ' / ' || sum(l.amount)
                           FROM recon.record_line l JOIN recon.raw_record r USING (record_id)
-                          WHERE l.status='MULTI_RULE' AND {IN_SCOPE} GROUP BY 1,2,3,4 ORDER BY 1,2"""):
+                          WHERE l.status='MULTI_RULE' AND {IN_SCOPE} GROUP BY 1,2,3,4 ORDER BY 1,2,3,4"""):
         ws.append(list(r))
     ws.append([])
     ws.append([_cell(ws, "Config changes applied since the CSVs were loaded (mapping_config_audit)", True, fill=HDR_FILL)])

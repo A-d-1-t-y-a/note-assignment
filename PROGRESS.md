@@ -151,7 +151,7 @@ in `MAPPING_FIXES.sql` and did not apply it.
 - Idempotent re-ingest (truncate and reload in one transaction), config hash stamped on each run,
   trigger-based config audit.
 - The summary is accumulated during ingestion and cross-checked against SQL on every report.
-- 24 pytest tests (35 after section 10): parsing edge cases (GMT+9 midnight crossing, abbreviated months, thousands
+- 24 pytest tests (36 after sections 10–12): parsing edge cases (GMT+9 midnight crossing, abbreviated months, thousands
   separators), rule precedence / prefix / duplicates / sign routing, and an end-to-end fixture run
   against a real Postgres database covering scope, statuses and reasons, running summary, a config
   fix as a data change, idempotency, and report ordering.
@@ -213,3 +213,23 @@ in `MAPPING_FIXES.sql` and did not apply it.
 - **Dump verified.** I restored `output/recon_dump_after_fix.sql.gz` into an empty database; its row,
   line, reconciled, audit and amount totals are identical to the live database.
 - 35 tests pass.
+
+## 12. Triple recheck before submission
+
+1. **Contents.** In a fresh clone of GitHub, 38/38 checklist checks passed: deliverables present,
+   inputs byte-identical, README sections and counts, MAPPING_FIXES blocks, a valid dump, workbook
+   sheets, and no scratch files, oversized files or secrets.
+2. **Reproduction.** In the same clone, on a brand-new database, tests passed and `run-all`
+   reproduced the committed workbooks value for value. One finding: two rows of the Tie-out sheet's
+   "Ingestion checks" table could swap order between runs (UNION ALL without ORDER BY). Fixed with an
+   explicit ordinal. I also gave every other query with a possible ordering tie a full ORDER BY, and
+   sorted a Python set in config validation. A new test (`test_report_is_deterministic`) requires two
+   reports from the same data to be identical. On the real data, two consecutive after-fix reports are
+   now identical on every sheet.
+3. **Requirements.** 21/21 task checks passed against the fresh database: one table for both files
+   with raw payload and line number, configs as tables with 9 audited changes, no unmapped amounts,
+   wildcard / fallback / sign routing exactly per config, running summary = SQL, 13,289 / 9,448 / 0
+   records, payments = settlement = Amazon header = 212,118.95, and only the explained -92.84 /
+   +93.20 / -0.36 residual (net 0.00) left.
+
+36 tests pass.

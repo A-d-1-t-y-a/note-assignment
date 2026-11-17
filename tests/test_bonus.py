@@ -130,3 +130,18 @@ def test_bad_settlement_row_reports_line(conn):
 def test_missing_file_is_reported(conn):
     with pytest.raises(FileNotFoundError, match="input file not found"):
         ingest(conn, conn.fx / "does_not_exist.csv", conn.fx / "s.txt")
+
+
+def test_report_is_deterministic(conn, tmp_path):
+    """Two reports from the same data must be identical cell for cell."""
+    import openpyxl
+    from recon.report import write_report
+    ingest(conn, conn.fx / "p.csv", conn.fx / "s.txt", force=True)
+    reconcile(conn)
+    a, b = tmp_path / "a.xlsx", tmp_path / "b.xlsx"
+    write_report(conn, a, "x")
+    write_report(conn, b, "x")
+    wa, wb = openpyxl.load_workbook(a, read_only=True), openpyxl.load_workbook(b, read_only=True)
+    assert wa.sheetnames == wb.sheetnames
+    for name in wa.sheetnames:
+        assert list(wa[name].iter_rows(values_only=True)) == list(wb[name].iter_rows(values_only=True)), name

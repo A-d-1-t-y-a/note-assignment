@@ -100,7 +100,7 @@ def validate_configs(conn) -> list[dict]:
             for tok in template_unknown_tokens(r.record_ref):
                 add(table, [r.rule_id], "unknown record_ref token",
                     f"'{tok}' in '{r.record_ref}' is not a known field; it is used as a literal")
-            for f in {r.positive_field, r.negative_field}:
+            for f in sorted({r.positive_field, r.negative_field} - {None}):
                 if f and f not in known_fields:
                     add(table, [r.rule_id], "summary field not on Summary layout", f)
             if bool(r.positive_field) != bool(r.negative_field):

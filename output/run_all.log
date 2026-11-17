@@ -15,7 +15,7 @@ schema created; payment rules=149 settlement rules=137
     "component_mismatch_rows": 0
   }
 }
-ingested in 18.5s
+ingested in 19.9s
 {
   "RECONCILED": {
     "records": 13289,
@@ -79,7 +79,7 @@ applied MAPPING_FIXES.sql
     "component_mismatch_rows": 0
   }
 }
-ingested in 21.4s
+ingested in 22.1s
 {
   "RECONCILED": {
     "records": 13289,
