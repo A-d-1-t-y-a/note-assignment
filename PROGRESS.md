@@ -151,7 +151,7 @@ in `MAPPING_FIXES.sql` and did not apply it.
 - Idempotent re-ingest (truncate and reload in one transaction), config hash stamped on each run,
   trigger-based config audit.
 - The summary is accumulated during ingestion and cross-checked against SQL on every report.
-- 24 pytest tests (33 after section 10): parsing edge cases (GMT+9 midnight crossing, abbreviated months, thousands
+- 24 pytest tests (35 after section 10): parsing edge cases (GMT+9 midnight crossing, abbreviated months, thousands
   separators), rule precedence / prefix / duplicates / sign routing, and an end-to-end fixture run
   against a real Postgres database covering scope, statuses and reasons, running summary, a config
   fix as a data change, idempotency, and report ordering.
@@ -198,3 +198,18 @@ in `MAPPING_FIXES.sql` and did not apply it.
   is exactly 10× the real figure, and both sources tie to the scaled header (2,121,189.50).
   Record counts scale ×10 except for keys without an order ID (Damaged:Warehouse, subscription,
   transfer), whose copies share a key. That is expected for synthetic duplicates.
+
+## 11. Final audit and remaining bonus hardening
+
+- **Independent audit.** A separate reviewer recomputed the key figures from the raw files (header
+  = lines = 212,118.95; in-scope payments 78,362.44; row and rule counts), checked every
+  MAPPING_FIXES.sql statement against the CSV row it targets, and compared both workbooks with the
+  sample layout and with every number in the docs. It found no blockers and nothing material. Its
+  three nits (test count, a docstring path, `is_net` not exposed) are fixed.
+- **Idempotency is now incremental.** An ingest of the same files (sha256) under the same config
+  (hash) is a no-op; `--force` reloads; a config change reloads automatically. Covered by tests.
+- **CLI error handling.** Bad input prints one `error: file:line: reason` line and exits with code 2,
+  with no traceback, and states that the transaction was rolled back. Database errors exit with code 3.
+- **Dump verified.** I restored `output/recon_dump_after_fix.sql.gz` into an empty database; its row,
+  line, reconciled, audit and amount totals are identical to the live database.
+- 35 tests pass.

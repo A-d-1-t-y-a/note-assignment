@@ -23,8 +23,10 @@ import time
 from decimal import Decimal
 from pathlib import Path
 
+import psycopg
+
 from . import configs, db
-from .ingest import ingest
+from .ingest import IngestError, ingest
 from .reconcile import reconcile, running_summary_by_line, summary_by_line
 
 ROOT = db.ROOT
@@ -60,9 +62,10 @@ def cmd_validate(conn, a):
 
 def cmd_ingest(conn, a):
     t = time.time()
-    stats = ingest(conn, a.payments, a.settlements, label=a.label)
+    stats = ingest(conn, a.payments, a.settlements, label=a.label, force=getattr(a, "force", False))
     _p(stats)
-    print(f"ingested in {time.time() - t:.1f}s")
+    if "skipped" not in stats:
+        print(f"ingested in {time.time() - t:.1f}s")
 
 
 def cmd_reconcile(conn, a):
@@ -164,6 +167,7 @@ def main(argv=None):
     p = sub.add_parser("apply-sql"); p.add_argument("file")
     sub.add_parser("validate")
     p = sub.add_parser("ingest"); p.add_argument("--label")
+    p.add_argument("--force", action="store_true", help="reload even if files and config are unchanged")
     sub.add_parser("reconcile")
     sub.add_parser("summary")
     p = sub.add_parser("report"); p.add_argument("out"); p.add_argument("--title", default="")
@@ -172,8 +176,20 @@ def main(argv=None):
     p = sub.add_parser("run-all"); p.add_argument("--outdir", default=str(ROOT / "output"))
     p.add_argument("--no-dump", action="store_true")
     a = ap.parse_args(argv)
-    with db.connect() as conn:
-        globals()["cmd_" + a.cmd.replace("-", "_")](conn, a)
+    try:
+        with db.connect() as conn:
+            globals()["cmd_" + a.cmd.replace("-", "_")](conn, a)
+    except (IngestError, FileNotFoundError, ValueError) as exc:
+        # expected input problems: one clear line, no traceback, non-zero exit
+        print(f"error: {exc}", file=sys.stderr)
+        if isinstance(exc, IngestError):
+            print("nothing was changed: the ingest runs in one transaction and was rolled back",
+                  file=sys.stderr)
+        return 2
+    except psycopg.Error as exc:
+        print(f"database error: {exc}".strip(), file=sys.stderr)
+        return 3
+    return 0
 
 
 if __name__ == "__main__":

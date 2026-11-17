@@ -176,7 +176,7 @@ CREATE TABLE recon_result (
 
 -- Convenience view: every record line with its source row and summary line.
 CREATE VIEW v_line_trace AS
-SELECT l.line_id, l.source, l.record_ref, l.amount_field, l.amount, l.summary_field,
+SELECT l.line_id, l.source, l.record_ref, l.amount_field, l.amount, l.is_net, l.summary_field,
        sl.section, sl.label AS summary_line, l.rule_table, l.rule_id, l.match_tier, l.status,
        r.record_id, f.file_name, r.line_no, r.settlement_id, r.transaction_status,
        r.transaction_type, r.amount_type, r.description, r.txn_ref, r.sku, r.recon_date, r.raw

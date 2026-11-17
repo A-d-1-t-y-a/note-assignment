@@ -1,4 +1,4 @@
-"""Pure normalisation helpers (no DB). Unit-tested in tests/test_normalize.py."""
+"""Pure normalisation helpers (no DB). Unit-tested in tests/test_normalize_rules.py."""
 from __future__ import annotations
 
 import re

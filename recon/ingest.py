@@ -256,8 +256,28 @@ class Ingestor:
         self.stats["SETTLEMENT"].rows += 1
 
     # -- driver ------------------------------------------------------------
-    def run(self, payment_path: Path, settlement_path: Path) -> dict:
+    def already_loaded(self, payment_path: Path, settlement_path: Path) -> bool:
+        """True if the last COMPLETED run loaded exactly these files (sha256) with
+        exactly the current config tables (config_hash). Re-ingesting would then
+        reproduce identical data, so it is skipped."""
+        with self.conn.cursor() as cur:
+            cur.execute("""SELECT r.config_hash,
+                                  max(f.sha256) FILTER (WHERE f.source='PAYMENT'),
+                                  max(f.sha256) FILTER (WHERE f.source='SETTLEMENT')
+                           FROM recon.ingest_run r JOIN recon.source_file f USING (run_id)
+                           WHERE r.finished_at IS NOT NULL
+                           GROUP BY r.run_id, r.config_hash ORDER BY r.run_id DESC LIMIT 1""")
+            last = cur.fetchone()
+        return bool(last) and last == (config_hash(self.conn), sha256(payment_path), sha256(settlement_path))
+
+    def run(self, payment_path: Path, settlement_path: Path, force: bool = False) -> dict:
         conn = self.conn
+        for p in (payment_path, settlement_path):
+            if not Path(p).is_file():
+                raise FileNotFoundError(f"input file not found: {p}")
+        if not force and self.already_loaded(payment_path, settlement_path):
+            conn.commit()
+            return {"skipped": "same files (sha256) and same config already ingested; use --force to reload"}
         with conn.transaction():
             with conn.cursor() as cur:
                 # idempotent re-ingestion: wipe previous run(s) atomically
@@ -296,5 +316,5 @@ class Ingestor:
         return {k: vars(v) for k, v in self.stats.items()}
 
 
-def ingest(conn, payment_path, settlement_path, label=None) -> dict:
-    return Ingestor(conn, label).run(Path(payment_path), Path(settlement_path))
+def ingest(conn, payment_path, settlement_path, label=None, force: bool = False) -> dict:
+    return Ingestor(conn, label).run(Path(payment_path), Path(settlement_path), force=force)

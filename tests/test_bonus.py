@@ -32,7 +32,7 @@ def test_summary_is_accumulated_batch_by_batch_during_ingestion(conn, monkeypatc
         observed.append(cur.fetchone()[0])
 
     monkeypatch.setattr(Ingestor, "_flush", spy)
-    ingest(conn, conn.fx / "p.csv", conn.fx / "s.txt")
+    ingest(conn, conn.fx / "p.csv", conn.fx / "s.txt", force=True)
     reconcile(conn)
     # summary grew monotonically while ingesting, i.e. it was not computed at the end
     assert len(observed) > 5
@@ -44,20 +44,54 @@ def test_summary_is_accumulated_batch_by_batch_during_ingestion(conn, monkeypatc
 
 def test_batch_size_does_not_change_results(conn, monkeypatch):
     monkeypatch.setattr(ingest_mod, "BATCH", 1)
-    ingest(conn, conn.fx / "p.csv", conn.fx / "s.txt")
+    ingest(conn, conn.fx / "p.csv", conn.fx / "s.txt", force=True)
     small = _snapshot(conn)
     monkeypatch.setattr(ingest_mod, "BATCH", 100000)
-    ingest(conn, conn.fx / "p.csv", conn.fx / "s.txt")
+    ingest(conn, conn.fx / "p.csv", conn.fx / "s.txt", force=True)
     assert _snapshot(conn) == small
 
 
 # ------------------------------------------------------------ idempotency
 def test_reingest_is_idempotent(conn):
-    ingest(conn, conn.fx / "p.csv", conn.fx / "s.txt")
+    ingest(conn, conn.fx / "p.csv", conn.fx / "s.txt", force=True)
     first = _snapshot(conn)
-    ingest(conn, conn.fx / "p.csv", conn.fx / "s.txt")
+    run_id = conn.execute("SELECT run_id FROM recon.ingest_run").fetchone()[0]
+    # unchanged files + unchanged config: skipped, nothing rewritten
+    res = ingest(conn, conn.fx / "p.csv", conn.fx / "s.txt")
+    assert "skipped" in res
+    assert conn.execute("SELECT run_id FROM recon.ingest_run").fetchone()[0] == run_id
+    assert _snapshot(conn) == first
+    # forced reload: rewritten, but byte-for-byte the same result
+    ingest(conn, conn.fx / "p.csv", conn.fx / "s.txt", force=True)
     assert _snapshot(conn) == first
     assert conn.execute("SELECT count(*) FROM recon.ingest_run").fetchone()[0] == 1
+
+
+def test_config_change_triggers_reload(conn):
+    ingest(conn, conn.fx / "p.csv", conn.fx / "s.txt", force=True)
+    conn.execute("UPDATE recon.payment_mapping_config SET to_summary_field_when_positive_amount = "
+                 "to_summary_field_when_positive_amount WHERE rule_id = 1")  # no-op, hash unchanged
+    conn.commit()
+    assert "skipped" in ingest(conn, conn.fx / "p.csv", conn.fx / "s.txt")
+    conn.execute("UPDATE recon.payment_mapping_config SET record_ref = record_ref || '' , "
+                 "to_summary_field_when_negative_amount = 'sales_other' WHERE rule_id = 1")
+    conn.commit()
+    assert "skipped" not in ingest(conn, conn.fx / "p.csv", conn.fx / "s.txt")
+    conn.execute("UPDATE recon.payment_mapping_config SET to_summary_field_when_negative_amount = "
+                 "'sales_product_charges' WHERE rule_id = 1")
+    conn.commit()
+
+
+def test_cli_reports_bad_input_cleanly(conn, capsys):
+    from recon.cli import main
+    bad = conn.fx / "p_cli_bad.csv"
+    bad.write_text(PAYMENTS.replace('"13.00"', '"13.OO"', 1), encoding="utf-8")
+    rc = main(["--payments", str(bad), "--settlements", str(conn.fx / "s.txt"), "ingest"])
+    err = capsys.readouterr().err
+    assert rc == 2
+    assert "p_cli_bad.csv:4" in err and "rolled back" in err and "Traceback" not in err
+    rc = main(["--payments", str(conn.fx / "nope.csv"), "--settlements", str(conn.fx / "s.txt"), "ingest"])
+    assert rc == 2 and "input file not found" in capsys.readouterr().err
 
 
 # ------------------------------------------------------------ error handling
@@ -94,5 +128,5 @@ def test_bad_settlement_row_reports_line(conn):
 
 
 def test_missing_file_is_reported(conn):
-    with pytest.raises(FileNotFoundError):
+    with pytest.raises(FileNotFoundError, match="input file not found"):
         ingest(conn, conn.fx / "does_not_exist.csv", conn.fx / "s.txt")

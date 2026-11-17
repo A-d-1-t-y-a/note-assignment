@@ -87,7 +87,7 @@ Individual steps:
 ```bash
 python -m recon init                       # schema + reference data + configs from data/*.csv
 python -m recon validate                   # static config checks (duplicates, bad tokens, cross-config conflicts)
-python -m recon ingest                     # both files -> recon.raw_record (one table); idempotent
+python -m recon ingest [--force]           # both files -> recon.raw_record (one table); skips if unchanged
 python -m recon reconcile                  # match on record_ref -> recon.recon_result
 python -m recon summary                    # Summary to stdout (also checks the running summary)
 python -m recon report output/report.xlsx
@@ -100,7 +100,7 @@ Input paths default to `data/`. Override them with `--payments`, `--settlements`
 `--settlement-cfg`. `--settlement-id` sets the reconciliation scope; by default it is the
 settlement(s) present in the settlement file.
 
-Tests (33 tests: unit tests, an end-to-end test on small fixtures against a real `recon_test` database,
+Tests (35 tests: unit tests, an end-to-end test on small fixtures against a real `recon_test` database,
 and bonus tests for in-ingestion summary, idempotency and error handling; see [Bonus items](#bonus-items-verified)):
 
 ```bash
@@ -112,9 +112,10 @@ and bonus tests for in-ingestion summary, idempotency and error handling; see [B
 | Item | How it is implemented | Evidence |
 |---|---|---|
 | Summary computed **while ingesting** | Per-row accumulation, upserted into `recon.running_summary` at every 5,000-row batch inside the ingest transaction | `test_summary_is_accumulated_batch_by_batch_during_ingestion` uses a batch size of 1 and checks the table grows after each batch, before ingestion ends. Batch size does not change results (`test_batch_size_does_not_change_results`). Every report shows "running summary equals SQL re-aggregation: YES". |
-| Idempotent re-ingestion | Truncate and reload in one transaction | `test_reingest_is_idempotent` and `test_config_fix_is_a_data_change_and_reingest_is_idempotent`: identical row counts, line sums and running summary after re-ingest. |
-| Error handling | Every parse error is raised as `IngestError("<file>:<line>: <reason>")`; the whole ingest is one transaction | `test_bad_input_fails_with_file_and_line_and_rolls_back` covers a bad amount, a bad month name, a missing column and a missing header row; `test_bad_settlement_row_reports_line` covers the settlement file. In every case the previous good data and summary are left untouched. This test found a real bug: month names were matched on their first 3 letters only ("Julember" was accepted as July); fixed. |
-| Tests | 33 pytest tests | `python -m pytest -q` → 33 passed |
+| Idempotent re-ingestion | A re-run with the same files (sha256) and the same config tables (config hash) is skipped as a no-op; `--force` reloads. Any reload is a truncate-and-load in one transaction. A config change (e.g. `MAPPING_FIXES.sql`) changes the hash and triggers a reload | `test_reingest_is_idempotent`: an unchanged re-run is skipped, and a forced reload produces identical row counts, line sums and running summary. `test_config_change_triggers_reload`: a no-op UPDATE is still skipped; a real config change reloads. |
+| Error handling | Every parse error is raised as `IngestError("<file>:<line>: <reason>")`; the whole ingest is one transaction | `test_bad_input_fails_with_file_and_line_and_rolls_back` covers a bad amount, a bad month name, a missing column and a missing header row; `test_bad_settlement_row_reports_line` covers the settlement file. In every case the previous good data and summary are left untouched. This test found a real bug: month names were matched on their first 3 letters only ("Julember" was accepted as July); fixed. The CLI prints one clear `error: <file>:<line>: <reason>` line and exits with code 2, with no traceback (`test_cli_reports_bad_input_cleanly`). A missing input file is reported before anything is touched. |
+| Tests | 35 pytest tests | `python -m pytest -q` → 35 passed |
+| Restorable dump | `pg_dump` of schema `recon`, gzipped | Restored `output/recon_dump_after_fix.sql.gz` into an empty database: 78,006 raw rows, 162,872 record lines, 13,289 reconciled, 9 config-audit entries and settlement total 212,118.95, identical to the live database. |
 | Larger files | Streaming reader, COPY in 5,000-row batches, cached key normalisation, secondary indexes rebuilt once after the load | `python scripts/make_large.py 10 bench/` builds a **10× dataset (230,260 payment + 549,791 settlement rows, ~200 MB)**. Under the same machine load: 1× ingest 45 s, 10× ingest 423 s (**~9.4×, linear**); 10× reconcile 87 s. Results scale exactly: every Summary line is 10× the real-data figure and payments = settlement lines = Amazon header total = 2,121,189.50. |
 
 ## Layout
