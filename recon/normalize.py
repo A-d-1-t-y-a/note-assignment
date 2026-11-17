@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import re
+from functools import lru_cache
 from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal, InvalidOperation
 
@@ -10,6 +11,7 @@ WILDCARD = "ANY"
 _NON_ALNUM = re.compile(r"[^A-Z0-9]")
 
 
+@lru_cache(maxsize=65536)
 def match_key(value: str | None) -> str:
     """Key used to compare raw values with config values.
 
@@ -37,8 +39,11 @@ def parse_amount(value: str | None) -> Decimal:
         raise ValueError(f"unparseable amount {value!r}") from exc
 
 
-_MONTHS = {m: i for i, m in enumerate(
-    ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"], 1)}
+_MONTH_NAMES = ["JANUARY", "FEBRUARY", "MARCH", "APRIL", "MAY", "JUNE", "JULY", "AUGUST",
+                "SEPTEMBER", "OCTOBER", "NOVEMBER", "DECEMBER"]
+# full names and the usual abbreviations only ('Jul', 'Sept'); anything else is rejected
+_MONTHS = {**{n: i for i, n in enumerate(_MONTH_NAMES, 1)},
+           **{n[:3]: i for i, n in enumerate(_MONTH_NAMES, 1)}, "SEPT": 9}
 _PAY_DT = re.compile(
     r"^\s*(\d{1,2})\s+([A-Za-z]+)\s+(\d{4})\s+(\d{1,2}):(\d{2}):(\d{2})\s*([ap]m)?\s*"
     r"(?:(?:GMT|UTC)\s*([+-]\d{1,2})(?::?(\d{2}))?)?\s*$",
@@ -54,7 +59,7 @@ def parse_payment_datetime(value: str | None) -> datetime | None:
     if not m:
         raise ValueError(f"unparseable payments date {value!r}")
     d, mon, y, hh, mm, ss, ampm, off_h, off_m = m.groups()
-    month = _MONTHS.get(mon[:3].upper())
+    month = _MONTHS.get(mon.upper().rstrip('.'))
     if not month:
         raise ValueError(f"unknown month in {value!r}")
     hour = int(hh)

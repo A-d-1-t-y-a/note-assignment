@@ -151,7 +151,7 @@ in `MAPPING_FIXES.sql` and did not apply it.
 - Idempotent re-ingest (truncate and reload in one transaction), config hash stamped on each run,
   trigger-based config audit.
 - The summary is accumulated during ingestion and cross-checked against SQL on every report.
-- 24 pytest tests: parsing edge cases (GMT+9 midnight crossing, abbreviated months, thousands
+- 24 pytest tests (33 after section 10): parsing edge cases (GMT+9 midnight crossing, abbreviated months, thousands
   separators), rule precedence / prefix / duplicates / sign routing, and an end-to-end fixture run
   against a real Postgres database covering scope, statuses and reasons, running summary, a config
   fix as a data change, idempotency, and report ordering.
@@ -173,3 +173,28 @@ in `MAPPING_FIXES.sql` and did not apply it.
   released payment rows total 78,362.44 and the bank transfer is -133,756.51, giving proceeds of
   212,118.95. The regenerated after-fix workbook has 13,289 reconciled records, 9,448 unreconciled
   payments (26 in scope), no unreconciled settlements, and a zero Amazon proceeds check.
+
+## 10. Verifying the bonus items
+
+- **Fresh clone.** I cloned the pushed repo into a new folder, created a new venv and database, and
+  ran it: input sha256s matched the originals, all tests passed, and `run-all` reproduced the same
+  numbers (before-fix 13,572.17 / ±11,273.53 / 42.59 / -11.97; after-fix only -92.84 / +93.20 / -0.36;
+  Amazon check 0; 13,289 reconciled).
+- **Summary during ingestion.** I added a test that runs with a batch size of 1 and inspects
+  `running_summary` after each flush, inside the ingest transaction. The totals grow batch by batch
+  and finish equal to the SQL re-aggregation. A second test shows batch size has no effect on results.
+- **Error handling.** I added tests for a corrupt amount, an invalid month, a short row, a file with
+  no header, and a corrupt settlement amount. Each fails with `file:line: reason`, and the previous
+  good load is left intact (the truncate rolls back). The invalid-month test **failed at first**:
+  the parser took the first three letters of the month, so "Julember" became July. Fixed by
+  accepting only full month names and standard abbreviations.
+- **Performance.** `scripts/make_large.py` builds a 10× dataset by duplicating rows with suffixed
+  order IDs, scaling the settlement header total by 10. Profiling showed Python parsing is linear
+  (~15 s per 1×), with key normalisation as the top hot spot (1.09M calls at 1×). I cached it, and
+  moved secondary index builds to after the COPY load. Under the same machine load, 1× ingest took
+  45 s and 10× took 423 s (~9.4×, linear). An earlier 18 s vs 413 s comparison looked super-linear
+  only because the machine was idle during the first measurement; the Postgres log shows antivirus
+  "sharing violation" retries on the data directory during the slow period. At 10× every Summary line
+  is exactly 10× the real figure, and both sources tie to the scaled header (2,121,189.50).
+  Record counts scale ×10 except for keys without an order ID (Damaged:Warehouse, subscription,
+  transfer), whose copies share a key. That is expected for synthetic duplicates.

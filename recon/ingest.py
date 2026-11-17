@@ -36,6 +36,15 @@ LINE_COLS = ["run_id", "record_id", "source", "amount_field", "amount", "rule_ta
              "match_tier", "status", "record_ref", "summary_field", "is_net"]
 
 
+# must match the indexes in schema.sql: "<name> <table>(<columns>)"
+SECONDARY_INDEXES = [
+    "raw_record_ref_idx raw_record(record_ref)",
+    "raw_record_src_idx raw_record(source, settlement_id, transaction_status)",
+    "record_line_ref_idx record_line(record_ref)",
+    "record_line_rec_idx record_line(record_id)",
+]
+
+
 class IngestError(Exception):
     pass
 
@@ -255,6 +264,9 @@ class Ingestor:
                 cur.execute("TRUNCATE recon.ingest_run, recon.source_file, recon.raw_record, "
                             "recon.record_line, recon.running_summary, recon.recon_result "
                             "RESTART IDENTITY CASCADE")
+                # bulk-load pattern: drop secondary indexes, load with COPY, rebuild once
+                for idx in SECONDARY_INDEXES:
+                    cur.execute(f"DROP INDEX IF EXISTS recon.{idx.split()[0]}")
                 cur.execute("INSERT INTO recon.ingest_run(label, config_hash) VALUES (%s,%s) RETURNING run_id",
                             (self.label, config_hash(conn)))
                 self.run_id = cur.fetchone()[0]
@@ -276,6 +288,10 @@ class Ingestor:
                     self._flush(cur, raw_rows, line_rows)
                     cur.execute("UPDATE recon.source_file SET data_rows=%s WHERE file_id=%s",
                                 (self.stats[source].rows, file_id))
+                for idx in SECONDARY_INDEXES:
+                    cur.execute(f"CREATE INDEX {idx.split()[0]} ON recon.{' '.join(idx.split()[1:])}")
+                cur.execute("ANALYZE recon.raw_record")
+                cur.execute("ANALYZE recon.record_line")
                 cur.execute("UPDATE recon.ingest_run SET finished_at=now() WHERE run_id=%s", (self.run_id,))
         return {k: vars(v) for k, v in self.stats.items()}
 

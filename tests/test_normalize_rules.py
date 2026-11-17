@@ -38,6 +38,9 @@ def test_payment_datetime_converts_gmt9_to_utc():
     # abbreviated month, 12 am edge
     assert parse_payment_datetime("1 Aug 2026 12:05:00 am GMT+9") == datetime(2026, 7, 31, 15, 5, tzinfo=timezone.utc)
     assert parse_payment_datetime("") is None
+    assert parse_payment_datetime("3 Sept 2026 1:00:00 pm GMT+9").month == 9
+    with pytest.raises(ValueError):
+        parse_payment_datetime("9 Julember 2026 12:00:56 am GMT+9")
 
 
 def test_settlement_datetime():
